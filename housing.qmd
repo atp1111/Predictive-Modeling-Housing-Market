@@ -1,0 +1,428 @@
+---
+title: "6950 Data Analysis Assignment"
+---
+
+Understanding the housing market is crucial for both buyers and sellers because it can help future buyers to plan their finances according to the kind of house they desire to purchase, it is also beneficial for property investors so that they can understand the trend of housing prices and estimate house prices objectively. Finance firms and banks also utilize such models to check for investment opportunities and for considering such estates as collateral for giving out loans. In this project, we tried to estimate log(Sale Price) of a house in Ames, Iowa based on several factors like number of bedrooms, number of rooms, square feet of the house, age of the house and the lot area of the house. We have explored relationships of different variables and how they can help us estimate Sale Price of a house.
+
+Initially, in order to estimate log(SalePrice) (logarithm of Sale Price of a house), we will look into 3 predictors, Bedrooms, Rooms and SqFt (Square feet of the house). The bi-variate relationships between these variables can be represented visually based on scatter plots and quantified based on pearson correlation coefficient. Please find the scatter plots and correlation coefficients below:
+
+```{r}
+library(dplyr)
+library(GGally)
+library(ggplot2)
+
+df = read.csv('ames_housing_data_DATA_ANALYSIS_2024.csv')
+df$logSalePrice = log(df$SalePrice)
+ggpairs(df %>% select(c(logSalePrice, Bedrooms, Rooms, SqFt))) 
+```
+
+We can observe from the visual above that SqFt and log(SalePrice) have a very strong positive correlation, which makes sense because bigger houses (bigger area) usually sell for a higher price than smaller houses. There is a moderately strong positive correlation between rooms and log(SalePrice), i.e. more the rooms, higher the price of the house. There is also a moderately strong positive correlation between Bedrooms and log(SalePrice), i.e. as the number of Bedrooms, price of the house also increases. However, we don't know yet if Bedrooms, Rooms and SqFt are the causes of the increase.
+
+We will also look at the kendall's (tau) correlation coefficient to quantify the relationship between Rooms and log(SalePrice) and between Bedrooms and log(SalePrice) since Bedrooms and Rooms are ordinal variables:
+
+```{r}
+rooms_cor = cor(df$logSalePrice, df$Rooms, method = "kendall")
+bedrooms_cor = cor(df$logSalePrice, df$Bedrooms, method = "kendall")
+cor_cat_df = data.frame(Variable = c("Rooms", "Bedrooms"),
+                        Kendalls_Tau = c(rooms_cor, bedrooms_cor))
+print(cor_cat_df)
+```
+
+Rooms and log(SalePrice) have a positive monotonic relationship, i.e., on average if number of rooms increase so does the log(SalePrice) and vice versa. However, we can't say just based on the kendall's tau if incresing rooms is the cause of log(SalePrice) increasing.
+
+Bedrooms and log(SalePrice) have a positive monotonic relationship, i.e.,on average if number of bedrooms increase so does the log(SalePrice) and vice versa. However, we can't say just based on the kendall's tau if increasing bedrooms is the cause of log(SalePrice) increasing.
+
+To check whether increase in number of bedrooms increases the price of house, let's first take a look at the average price of a house for each category of number of bedroom.
+
+Average Price of House v/s Bedrooms
+
+```{r}
+bedrooms_avg = df %>% group_by(Bedrooms) %>%
+  summarise(Average_Price_House = mean(SalePrice))
+
+ggplot(bedrooms_avg, aes(x = factor(Bedrooms), y=Average_Price_House, fill=factor(Bedrooms))) +
+  geom_bar(stat = 'identity') +
+  labs(title = 'Average Price of House v/s Bedrooms', x='Bedrooms', y='Average Sale Price of House') +
+   guides(fill = guide_legend(title = "Bedrooms"))
+```
+
+Based on the graph above, houses with more bedrooms are usually more expensive. Let's take a look at simple linear regression model with log(SalePrice) as response and Bedrooms as the predictor, to see whether increase in bedrooms causes an increase in log(SalePrice)
+
+```{r}
+
+slr1 = lm(logSalePrice ~ Bedrooms, df)
+summary(slr1)
+```
+
+According to the simple linear regression model, each additional bedroom corresponds to an increase of log(SalePrice) by \~20.7%.
+
+Next, let's do a right-tailed T-test to check whether the coefficient of bedrooms is positive or not, because only if this coefficient is positive, we can say that increase in bedrooms leads to an increase in log(SalePrice), on average. Let $\beta_1$ be the coefficient for Bedrooms.
+
+$H_0: \beta_1 = 0$
+
+$H_a: \beta_1 > 0$
+
+T = 9.987
+
+p-value \~ 0
+
+Hence, we can reject the null hypothesis at 0.05 significance level. We have enough evidence to say that $\beta_1$\>0, i.e. with increase in Bedrooms the log(SalePrice) increases. According to the summary of the model, each additional bedroom corresponds to an increase in log(SalePrice) by 20.7%, i.e. each additional bedroom causes the average price of the house to increase by a factor of e\^b1, i.e. the new average price of the house (after adding 1 bedroom) is e\^b1\*price of the house before adding bedroom, which means each additional bedroom leads to increase in sale price by \~22.9%.
+
+However, this is a very simple model, which doesn't explain much variability in the response, so the inference made above may not take into account values of other variables. The next step is to consider models with more variables, so that the model can explain more variability in the response, log(SalePrice) and will lead to better estimates.
+
+We will perform regression analysis to find out if **Rooms**, **Bedrooms** and **SqFt** can estimate the mean of log(SalePrice).
+
+In order to model the relationship of log(SalePrice) on Bedrooms, Rooms and SqFt, we considered 4 linear models as follows:
+
+1.**m1**: The first model considered log(SalePrice) as the response and Bedrooms, Rooms and Squarefeet as the predictors, with an interaction effect between Bedrooms and Rooms.
+
+The mean function for log(SalePrice) is as follows:
+
+E(log(SalePrice)\|Bedrooms, Rooms, SqFt) = $\beta_0$ + $\beta_1$\*Bedrooms + $\beta_2$\*Rooms + $\beta_3$\*SqFt + $\beta_4$\*Bedrooms\*Rooms
+
+This is the model which assumes that the slope (for Bedrooms and/or Rooms) and intercept are different for different values of Bedrooms and Rooms.
+
+2.  **m2**: The second model considered log(SalePrice) as the response and Bedrooms, Rooms and Squarefeet as the predictors, with just the main effects.
+
+    The mean function for log(SalePrice) is as follows:
+
+    E(log(SalePrice)\|Bedrooms, Rooms, SqFt) = $\beta_0$ + $\beta_1$\*Bedrooms + $\beta_2$\*Rooms + $\beta_3$\*SqFt
+
+    This is the model with all available variables, it assumes the slopes and intercept are constant for all values of Bedrooms, Rooms and SqFt.
+
+3.  **m3**: The third model considered log(SalePrice) as the response and Bedrooms and average room size, we converted Bedrooms to a factor (categorical predictor) and considered dummy variables and found average room size by dividing SqFt by Rooms, we also considered the interaction effect.
+
+    The mean function for log(SalePrice) is as follows:
+
+    E(log(SalePrice)\|Bedrooms, Rooms, SqFt) = $\beta_0$ + $\beta_1 * U_3$ + $\beta_2*U_4$ + $\beta_3$\*(SqFt/Rooms) + $\beta_4*U_3$\*(SqFt/Rooms) + $\beta_5*U_4$\*(SqFt/Rooms)
+
+    $U_3$ = 1, if number of bedrooms is 3 and $U_3$ = 0, otherwise
+
+    $U_4$ = 1, if number of bedrooms is 4 and $U_4$ = 0, otherwise
+
+    We are considering Bedrooms as a categorical variables and creating dummy variables for unique values of Bedrooms. This is because there are only 3 possible values for Bedrooms, 2, 3 or 4. So, it's not continuous and just has 3 categories. Bedroom = 2 is considered as the baseline level for Bedrooms and hence hasn't been included as a variable in the model as it would over-parameterize the mean function. We are also assuming the slope (for SqFt/Room) and intercepts are different for different values of Bedrooms.
+
+4.  **m4**: The fourth model considered log(SalePrice) as the response and Bedrooms and average room size, we converted Bedrooms to a factor (categorical predictor) and considered dummy variables and found average room size by dividing SqFt by Rooms, we only considered main effects.
+
+    The mean function for log(SalePrice) is as follows:
+
+    2.  E(log(SalePrice)\|Bedrooms, Rooms, SqFt) = $\beta_0$ + $\beta_1 * U_3$ + $\beta_2*U_4$ + $\beta_3$\*(SqFt/Rooms)
+
+        $U_3$ = 1, if number of bedrooms is 3 and $U_3$ = 0, otherwise
+
+        $U_4$ = 1, if number of bedrooms is 4 and $U_4$ = 0, otherwise
+
+    We are considering Bedrooms as a categorical variables and creating variables for unique values of Bedrooms. This is because there are only 3 possible values for Bedrooms, 2, 3 or 4. So, it's not continuous and just has 3 categories. Bedroom = 2 is considered as the baseline level for Bedrooms and hence hasn't been included as a variable in the model as it would over-parameterize the mean function. We are assuming the slope remains constant for different values of Bedrooms and intercept is different for different values of Bedroom.
+
+Fitting the models:
+
+```{r}
+m1 = lm(log(SalePrice) ~ Bedrooms*Rooms + SqFt,data = df)
+m2 = lm(log(SalePrice) ~ Bedrooms + Rooms + SqFt,data = df)
+m3 =  lm(log(SalePrice) ~ factor(Bedrooms) * (I(SqFt/Rooms)),data = df)
+m4 =  lm(log(SalePrice) ~ factor(Bedrooms) + (I(SqFt/Rooms)),data = df)
+```
+
+The first thing that needs to be done is to choose the optimal model for our use case of estimating log(SalePrice) given the number of bedrooms, no of rooms and square feet of a house. In order to do so, we will perform F-test for nested models, analyze the diagnostic plots of these regression models and then compare them based on some metrics like AIC, R-squared and Sum of Squared Errors.
+
+Then, after choosing the best model, the questions about relationships between certain variables (given in the assignment) will be answered.
+
+F-test for nested models:
+
+1.  **m1** v/s **m2**
+
+In this test, we will find out whether the extra interaction term in **m1** explain a statistically significant amount of additional variability in log(SalePrice) than **m2**
+
+Let the coefficient for interaction term in **m1** be $\beta_4$.
+
+$H_0:$ **m1** and **m2** explain equivalent amount of variability, i.e. $\beta_4=0$
+
+$H_a :$ **m1** explains a statistically significant amount of additional variability in log(SalePrice) than **m2**, i.e. $\beta_4 \neq 0$
+
+```{r}
+anova(m2, m1)
+```
+
+Based on the F-test for nested model between **m1** and **m2**, we observe that **m1** explains statistically significant amount of additional variability than **m2** at 0.05 significance level, hence **m1** is better than **m2** at explaining variability in log(SalePrice) using a linear mean function. We will drop **m2** going forward.
+
+2.  **m3** v/s **m4**
+
+Let the coefficients for the interaction terms in **m3** be $\beta_4$ and $\beta_5$.
+
+F-test:
+
+H0: **m3** and **m4** explain equivalent amount of variability, i.e. $\beta_4=\beta_5=0$
+
+Ha: **m3** explains a statistically significant amount of additional variability in log(SalePrice) than **m4**, i.e. at least one of $\beta_4 \neq 0$ or $\beta_5 \neq 0$
+
+```{r}
+anova(m4, m3)
+```
+
+Based on the F-test for nested model between **m3** and **m4**, we observe that **m3** does not explain a statistically significant amount of additional variability than **m4** at 0.05 significance level. Hence, we will drop **m4** going forward.
+
+Now, we are left with **m1** and **m4**. We will compare these 2 models to find the model which is most appropriate for our use case based on diagnostic plots like "Residuals v/s Fitted Value plots" and "Q-Q plot for Residuals".
+
+Diagnostic plots for **m1** and **m4**:
+
+```{r, fig.width=4.5, fig.height=3}
+#Residuals v/s Fitted Values plot for Model 1
+plot(m1,which=1, title("Residuals v/s Fitted Values plot for m1"))
+```
+
+```{r, fig.width=4.6, fig.height=3}
+#Residuals v/s Fitted Values plot for Model 4
+plot(m4,which=1, title("Residuals v/s Fitted Values plot for m4"))
+```
+
+```{r, fig.width=4.5, fig.height=3}
+#Q-Q plot for Model1
+plot(m1,which=2, title("Q-Q plot for m1"))
+```
+
+```{r, fig.width=4.6, fig.height=3}
+#Q-Q plot for Model4
+plot(m4,which=2, title("Q-Q plot for m4"))
+```
+
+The residuals vs. fitted plots for models ***m1*** and **m4** indicate that the residual plot for ***m1*** is closer to a null plot, whereas the plot for ***m4*** exhibits noticeable curvature. This suggests that model ***m1*** is more appropriate than ***m4***. Furthermore, the Q-Q plots reveal that the residuals for ***m1*** align more closely with the straight line compared to ***m4***, indicating that the normality assumption is better satisfied in ***m1***.
+
+Henceforth, we will only consider **m1**, as it explains more variability and doesn't deviate much from the linear regression assumptions. Summary function for **m1**:
+
+```{r}
+summary(m1)
+```
+
+Based on **m1**, we will find out if increase in bedroom increases Sale price of a house on average, while adjusting for SqFt and Rooms:
+
+Difference in expected log(SalePrice) for houses with bedrooms, b+1 and b bedrooms, i.e. we are looking at how much expected log(SalePrice) increases or decreases for each additional bedroom, while adjusting for other variables.
+
+E(log(SalePrice) \| Bedrooms = b, Rooms = r, SqFt = s) = $\beta_0$ + $\beta_1$\*b + $\beta_2$\*r + $\beta_3$\*s + $\beta_4$\*b\*r
+
+E(log(SalePrice) \| Bedrooms = b+1, Rooms = r, SqFt = s) = $\beta_0$ + $\beta_1$\*(b+1) + $\beta_2$\*r + $\beta_3$\*s + $\beta_4$\*(b+1)\*r
+
+E(log(SalePrice) \| Bedrooms = b+1, Rooms = r, SqFt = s) - E(log(SalePrice) \| Bedrooms = b, Rooms = r, SqFt = s) = $\beta_1$ + $\beta_4$\*r
+
+Each additional Bedroom, causes the expected Sale Price to change by $\beta_1$ + $\beta_4$\*r, where $\beta_1$ is the coefficient of bedrooms and $\beta_4$ is the coefficient of interaction term between Bedrooms. If b1 $\beta_1$ + $\beta_4$\*r is positive then, each additional bedroom increases the expected log(SalePrice). To check this, we will do right tailed t-tests to see if b1+b4\*rooms\>0 with all potential values of rooms, i.e., 4,5, 6,7,8,9,10,11:
+
+H0: b1 + b4\*rooms = 0
+
+Ha: b1 + b4\*rooms \> 0
+
+p-values for different values of rooms:
+
+```{r}
+t_test_bedrooms = function(rooms){
+  b1 = 3.540e-01
+  b4 = -7.068e-02
+  numerator = b1 + b4*rooms 
+  var_b1 = vcov(m1)[2,2]
+  var_b4 = vcov(m1)[5,5]
+  cov_b1_b4 = vcov(m1)[2,5]
+  var_b1_b4 = var_b1 + (rooms^2)*var_b4 + 2*rooms*cov_b1_b4
+  se_b1_b4 = sqrt(var_b1_b4)
+  t = numerator/se_b1_b4
+  p_value = (1-pt(t, 753))
+  return(p_value)
+}
+
+rooms = c()
+p_values = c()
+for (i in seq(4,11)){
+  p_values = c(p_values, round(t_test_bedrooms(i),6))
+  rooms = c(rooms, i)
+}
+
+p_value_df = data.frame(Rooms = rooms,
+                        P_value = p_values)
+print(p_value_df)
+```
+
+Here, we can observe that the p-value is more than 0.05 for all fixed values of room other than when rooms = 4, so we fail to reject the null hypothesis for all values of rooms, other than when rooms = 4. So, if rooms = 4, then increasing bedrooms increases the expected log(SalePrice), while adjusting for other variables. If rooms \> 4, then increasing the number of bedrooms does not increase the expected value of log(SalePrice), while adjusting for other variables.
+
+So if number of rooms is fixed at 4 and SqFt is fixed at s, each additional bedroom increases the expected log(SalePrice) by 7.128%, while adjusting for other variables.
+
+The following graph of Bedrooms v/s log(SalePrice), shows how bedroom impacts the mean log(SalePrice), while adjusting for other variables:
+
+```{r}
+library(ggplot2)
+
+bedrooms <- seq(2, 4)  
+rooms <- seq(4, 11)    
+
+df_bed_room_sqft <- expand.grid(Bedrooms = bedrooms, Rooms = rooms, SqFt = mean(df$SqFt))
+
+df_bed_room_sqft$Pred_log_SalePrice <- predict(m1, newdata = df_bed_room_sqft)
+
+ggplot(df_bed_room_sqft, aes(x = Bedrooms, y = Pred_log_SalePrice, color = factor(Rooms))) +
+  geom_line(size = 1) +
+  labs(
+    title = "Effect of Bedrooms on SalePrice at Different Levels of Rooms",
+    x = "Bedrooms",
+    y = "Expected Log(SalePrice)",
+    color = "Rooms"
+  ) +
+  theme_minimal() +
+  scale_color_brewer(palette = "Set1")  
+```
+
+We can observe that when Rooms is fixed at 4 and SqFt is fixed at its sample mean, as the number of bedrooms increase so does the expected value of log(SalePrice). When Rooms is fixed at 5 and SqFt is fixed at its sample mean, log(SalePrice) hardly shows any change. When Rooms \> 5 and SqFt is fixed at its sample mean, we see that increasing Bedrooms decreases the expected value of log(SalePrice).
+
+Next, let's look at how SqFt factors into the relationship of log(SalePrice) v/s Bedrooms, Rooms and SqFt based on Model1. According to the summary of **m1**, each additional SqFt of a house, increases the log(SalePrice) of a house by 0.068%, while adjusting for other variables. In order to make sure that an additional Sqft increases the mean log(SalePrice), let us perform a right tailed t-test on coefficient for SqFt. Let $\beta_3$ be the coefficient of SqFt.
+
+$H_0$: $\beta_3$ = 0
+
+$H_a$: $\beta_3$ \> 0
+
+$T = (\hat{\beta_3} - 0)/SE(\hat{\beta_3}|X) = 22.631$
+
+$p-value = P(T>22.631) \equiv 0$
+
+Hence, we can reject the null hypothesis at 0.05 significance level. We have enough evidence to say that $\beta_3$\>0, i.e. increasing SqFt, while adjusting for other variables in the model, increases the log(SalePrice). Each additional SqFt, controlling for Rooms and Bedrooms, causes the SalePrice to be e\^(0.00068) times the original sale price, i.e. the Sale Price increases by 0.07% for each additional sqft of a house, if rooms and bedrooms are constant.
+
+Price of 2 bedroom v/s 3 bedroom houses:
+
+If we want to compare the average price of 3 bedroom v/s 2 bedroom houses, while all other variables (SqFt and Rooms) are constant, we will need to compute the 95% confidence interval of difference between expected log(SalePrice) between houses with 2 bedrooms and houses with 4 bedrooms, this will give us the likely values of difference between the log(SalePrice) of the houses.
+
+Let the number of rooms (Rooms) be fixed at "r" rooms and the square feet of the house (SqFt) be fixed at "s" square feet. Mean function for the 3 bedroom house:
+
+E(log(SalePrice) \| Bedrooms = 3, Rooms = 6, SqFt = s) = $\beta_0$ + $3*\beta_1$ + $6*\beta_2$ + $s*\beta_3$ + $18*\beta_4$
+
+Mean function for the 2 bedroom house:
+
+E(log(SalePrice) \| Bedrooms = 2, Rooms = 6, SqFt = s) = $\beta_0$ + $2*\beta_1$ + $6*\beta_2$ + $s*\beta_3$ + $12*\beta_4$
+
+We need a confidence interval for difference between their expected log(SalePrice). Difference between mean of log(SalePrice) for 3 bedroom and 2 bedroom houses:
+
+E(log(SalePrice) \| Bedrooms = 3, Rooms = 6, SqFt = s) - E(log(SalePrice) \| Bedrooms = 2, Rooms = 6, SqFt = s) = $\beta_1$ + $6*\beta_4$
+
+So, we need a confidence interval for $\beta_1$ + $6*\beta_4$.
+
+$\beta_1$ + $6*\beta_4$ = ( $\hat{\beta_1}$ + $6*\hat{\beta_4}$ ) $\pm$ T\*SE( ( $\hat{\beta_1}$ + $6*\hat{\beta_4}$ ) \| X),
+
+where T is the T-value at 753 degrees of freedom and 0.025 significance level, i.e. T $\equiv$ 1.96 and
+
+SE( ( $\hat{\beta_1}$ + $6*\hat{\beta_4}$ ) \| X) = $\sqrt{Var((\hat{\beta_1} + 6*\hat{\beta_4})|X)}$ =$\sqrt{Var(\hat{\beta_1}|X) + 36*Var(\hat{\beta_4}|X) + 12*Cov(\hat{\beta_1}, \hat{\beta_4}|X)}$
+
+We can find these variance and covariance values from the variance covariance matrix of the estimated coefficients:
+
+```{r}
+vcov(m1)
+```
+
+$Var((\hat{\beta_1} + 6*\hat{\beta_4})|X)$ = 0.0027 + 36\*0.00006 + 12\*(-0.00039) = 0.00018
+
+$SE((\hat{\beta_1} + 6*\hat{\beta_4})|X)$ = $\sqrt{Var((\hat{\beta_1} + 6*\hat{\beta_4})|X)}$
+
+$SE((\hat{\beta_1} + 6*\hat{\beta_4})|X)$ = 0.0134
+
+$\hat{\beta_1} + 6*\hat{\beta_4}$ = 0.354 + 6\*(-0.07068) = -0.07008
+
+$\beta_1$ + $6*\beta_4$ = -0.07008 $\pm$ 1.96\*(0.0134) = (-0.0963, -0.0483)
+
+We are 95% confident that the difference between mean of log(SalePrice) for 3 bedroom houses from that of 2 bedroom houses is between -0.0963 to -0.0483, while rooms is fixed at 6 and SqFt is fixed at s, i.e. 2 bedroom houses have average log(SalePrice) 0.0483 to 0.0963 more than average log(SalePrice) of 3 bedroom houses. Let us assume that s is sample mean of SqFt, i.e., 1443.935. Then, we can say with 95% confidence that 3 bedroom houses have average SalePrice that is 0.3% to 0.8% lower than the average sale price of a 2 bedroom house in its original scale.
+
+Next, we will try to see if YearBuilt, i.e. the year the particular house was built, can help us estimate log(SalePrice) more accurately. In order to use this variable, we have decided to consider age of the house as a predictor, where Age = 2024 - YearBuilt. Firstly, we will see the marginal relationship between age and SalePrice.
+
+```{r}
+df$Age = 2024 - df$YearBuilt
+ggpairs(df %>% select(logSalePrice, Age))
+```
+
+There is a moderately strong negative correlation between Age and SalePrice, i.e. older houses seem to be cheaper than new houses. In order to include Age as a predictor, we tried 3 models, one with Age as the additional predictor(m6), one with log(Age) {since from the scatter plot it can be seen that Age has range of more than one order of magnitude that is why we can be good to use a logarithmic transformation} as predictor (m7) and one with Age\^2 as predictor (m8).
+
+Comparing **m7**, **m8** and **m9** based on AIC, R squared and residual standard error as these are commonly used for comparing regression models:
+
+```{r}
+m6 = lm(log(SalePrice) ~ Bedrooms*Rooms + SqFt+ (Age),data = df)
+m7 = lm(log(SalePrice) ~ Bedrooms*Rooms + SqFt+ log(Age),data = df)
+m8 = lm(log(SalePrice) ~ Bedrooms*Rooms + SqFt+ I(Age^2),data = df)
+
+metrics_df = data.frame(Model = c("m6", "m7", "m8"),
+                        AIC = c(AIC(m6), AIC(m7), AIC(m8)),
+                        R2 = c(summary(m6)$r.squared, summary(m7)$r.squared, summary(m8)$r.squared),
+                        Sigma_hat = c(sigma(m6), sigma(m7), sigma(m8)))
+print(metrics_df)
+```
+
+m7 has the lowest AIC, highest R squared and lowest residual standard error, proving that m7 is the best model out of the three based on all of the metrics. Hence, we will use m7 moving forward.
+
+Having settled on **m7**, we compared it with our original model, **m1**. We observed a significant increase in R-squared, from 0.69 in **m1** to 0.835 in **m7**. In order to compare **m1** and **m7**, to see if **m7** explains significant additional variability, we will perform an F-test for nested models:
+
+H0: **m7** does not explain any additional variability in comparison to **m1**, i.e. $\beta_4 = 0$
+
+Ha: **m7** explains significant amount of additional variability in comparison to **m1**, i.e. $\beta_4 \neq 0$
+
+```{r}
+anova(m1, m7)
+```
+
+Since the p-value is very close to 0, we can reject the null hypothesis and conclude that **m7** explains a significant amount of additional variability in log(SalePrice) in comparison to **m1**.
+
+Diagnostic plots for **m1** v/s **m7**
+
+```{r}
+par(mfrow=c(2,2))
+plot(m1,which=1, title("Residual v/s Fitted Plot for m1"))
+plot(m7,which=1, title("Residual v/s Fitted Plot for m7"))
+plot(m1,which=2, title("Q-Q Plot for m1"))
+plot(m7,which=2, title("Q-Q Plot for m7"))
+```
+
+Additionally, the **Residuals vs. Fitted** plots and **Q-Q plots** show that the residuals for **m7** are more randomly scattered than those for **m1** and **m7** has less deviations from normal distribution in comparison to **m1**. Hence, m7 is the model we will use going forward.
+
+In order to see if Age decreases the expected log(SalePrice), while adjusting for other variables, we will perform a t-test on coefficient of log(Age).
+
+$H_0$: $\beta_4$ = 0
+
+$H_a$: $\beta_4$\<0
+
+T = $\hat{\beta_4}/SE(\hat{\beta_4}|X)$ = -25.633
+
+p-value \< 2e-16
+
+Since p-value is very small, we can reject the null hypothesis at 0.05 significance level and conclude that increasing log(Age), decreases the expected log(SalePrice) while adjusting for other variables. If we increase log(Age) by 1 unit, the expected log(SalePrice) decreases by 27%, i.e. if age was "**a"** years and we increase age by 1 year (while adjusting for other variables), the expected SalePrice decreases by (1 - e\^(-0.027) \* log(1 + 1/a))\*100 % in comparison to the SalePrice when Age was a years.
+
+Next, we will try to incorporate the **LotArea** variable in order to estimate log(SalePrice) more accurately. We considered 3 different models, model **f1** includes **LotArea** as a predictor, model **f2** includes  **log(LotArea)** {since from the scatter plot it can be seen that LotArea has range of more than one order of magnitude that is why we can be good to use a logarithmic transformation}  as a predictor, and model **f3** includes **LotArea\^2** as a predictor. We will compare these 3 models based on AIC, R squared and residual standard error:
+
+```{r}
+f1 = lm(log(SalePrice) ~ Bedrooms*Rooms + SqFt+ log(Age)+LotArea,data = df)
+f2 = lm(log(SalePrice) ~ Bedrooms*Rooms + SqFt+ log(Age)+log(LotArea),data = df)
+f3 = lm(log(SalePrice) ~ Bedrooms*Rooms + SqFt+ log(Age)+I(LotArea^2),data = df)
+
+metrics_full_df = data.frame(Model = c("f1", "f2", "f3"),
+                        AIC = c(AIC(f1), AIC(m7), AIC(m8)),
+                        R2 = c(summary(f1)$r.squared, summary(f2)$r.squared, summary(f3)$r.squared),
+                        Sigma_hat = c(sigma(f1), sigma(f2), sigma(f3)))
+print(metrics_full_df)
+```
+
+f2 has the lowest AIC, highest R squared and lowest residual standard error, proving that f2 is the best model out of the three based on all of the metrics. Hence, we will use f2 moving forward. Next, in order to find out if **f2** explains additional variability in comparison to **m7** we will do an F-test for nested models:
+
+```{r}
+anova(m7, f2)
+```
+
+Since the p-value is close to 0, we can reject the null hypothesis at 0.05 significance level and conclude that **f2** explains significant amount of additional variability in comparison to **m7**.
+
+Next, we will compare the diagnostic plots of m7 and f2:
+
+```{r}
+par(mfrow=c(2,2))
+plot(f2,which=1)
+plot(m7,which=1)
+plot(f2,which=2)
+plot(m7,which=2)
+```
+
+We can observe that the Residual v/s fitted plot is almost the same for both models and the Q-Q plot shows us that there are fewer deviations from normal for residuals in **f2** than **m7**. Hence, we will use **f2** as our final model.
+
+To calculate the prediction interval, we input the values of the predictor variables: 2 bedrooms, 5 rooms, 1300 square feet of living area, and a lot size of 11,000 square feet for a house built in 1960, which gives an age of 64 years (calculated as 2024 - 1960).
+
+```{r}
+pred <- predict(f2, newdata = data.frame(Bedrooms = 2,Rooms = 5,SqFt = 1300,Age = 64,LotArea = 11000), interval = "prediction")
+
+print(exp(pred)) #converting SalePrice to original scale in dollars 
+```
+
+Based on the regression model, we predict that the sale price of this two-bedroom, 1300 square foot house with five total rooms, built in 1960, and situated on an 11,000 square foot lot, will range between **\$115,021.40** and **\$196,861.30** with 95% confidence. This means that, while the best estimate for the house’s sale price is **\$150,476.80**, we can be 95% confident that the actual sale price will fall within this interval.
